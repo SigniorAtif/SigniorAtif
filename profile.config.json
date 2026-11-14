@@ -1,7 +1,7 @@
 {
   "login": "SigniorAtif",
   "hero": {
-    "eyebrow": "Fullstack developer · coding since 2015",
+    "eyebrow": "Fullstack developer · coding since 2018",
     "first": "Atif",
     "last": "Ahmed",
     "tagline": "A chaotic overachiever who made being a software developer his whole personality.",
@@ -22,10 +22,10 @@
       "url": "https://github.com/SigniorAtif?tab=repositories"
     },
     {
-      "kicker": "Compete",
-      "value": "9th",
-      "unit": "globally",
-      "text": "International Codewars Olympiad, after years of interschool contests and hackathons.",
+      "kicker": "Deploy",
+      "value": "15+",
+      "unit": "sites live",
+      "text": "Client and community sites on Vercel: GDG KIIT, Orbit Esports, Crambook and Foodiez.",
       "color": "red",
       "url": "https://www.ahmedatif.in"
     },
@@ -33,12 +33,12 @@
       "kicker": "Learn",
       "value": "{yearsCoding}",
       "unit": "years",
-      "text": "Of code since 2015: game dev, machine learning, web dev and competitive programming.",
+      "text": "Of code since 2018: game dev, machine learning, web dev and competitive programming.",
       "color": "yellow",
       "url": "https://www.ahmedatif.in"
     }
   ],
-  "since": 2015,
+  "since": 2018,
   "codingTitle": "What I’m",
   "codingTitleItalic": "coding",
   "projects": [
