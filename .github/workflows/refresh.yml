@@ -1,0 +1,48 @@
+name: Refresh profile cards
+
+on:
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - profile.config.json
+      - scripts/**
+      - .github/workflows/refresh.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-cards
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build cards
+        run: node scripts/build.mjs
+        env:
+          # A PAT with read:user in PROFILE_TOKEN is only needed if the
+          # default token ever stops seeing private contribution counts.
+          GH_TOKEN: ${{ secrets.PROFILE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cards README.md
+          if git diff --cached --quiet; then
+            echo "cards unchanged"
+          else
+            git commit -m "chore(cards): refresh contribution stats"
+            git push
+          fi
