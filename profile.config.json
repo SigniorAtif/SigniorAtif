@@ -1,0 +1,67 @@
+{
+  "login": "SigniorAtif",
+  "hero": {
+    "eyebrow": "Fullstack developer · coding since 2015",
+    "first": "Atif",
+    "last": "Ahmed",
+    "tagline": "A chaotic overachiever who made being a software developer his whole personality.",
+    "link": { "label": "ahmedatif.in", "url": "https://www.ahmedatif.in" }
+  },
+  "heatmap": {
+    "title": "Every day,",
+    "titleItalic": "in blue",
+    "note": "Refreshed daily"
+  },
+  "tiles": [
+    {
+      "kicker": "Build",
+      "value": "{repos}",
+      "unit": "repos",
+      "text": "Hyprland desktops, Minecraft tools, client sites and AI side projects.",
+      "color": "blue",
+      "url": "https://github.com/SigniorAtif?tab=repositories"
+    },
+    {
+      "kicker": "Compete",
+      "value": "9th",
+      "unit": "globally",
+      "text": "International Codewars Olympiad, after years of interschool contests and hackathons.",
+      "color": "red",
+      "url": "https://www.ahmedatif.in"
+    },
+    {
+      "kicker": "Learn",
+      "value": "{yearsCoding}",
+      "unit": "years",
+      "text": "Of code since 2015: game dev, machine learning, web dev and competitive programming.",
+      "color": "yellow",
+      "url": "https://www.ahmedatif.in"
+    }
+  ],
+  "since": 2015,
+  "codingTitle": "What I’m",
+  "codingTitleItalic": "coding",
+  "projects": [
+    {
+      "repo": "ruyah",
+      "text": "Watch the same film from two places, each playing your own copy. Only timing crosses the network.",
+      "color": "blue"
+    },
+    {
+      "repo": "quexchange",
+      "text": "Move a file between two devices on visible light: QR frames on one screen, a camera on the other.",
+      "color": "red"
+    },
+    {
+      "repo": "Rury-dot-files",
+      "text": "My Quickshell desktop for Hyprland: bar, dock, lock screen and wallpaper-driven theming.",
+      "color": "yellow"
+    }
+  ],
+  "links": [
+    { "label": "ahmedatif.in", "url": "https://www.ahmedatif.in" },
+    { "label": "ruyah", "url": "https://ruyah.ahmedatif.in" },
+    { "label": "quexchange", "url": "https://quexchange.vercel.app" },
+    { "label": "dotfiles", "url": "https://github.com/SigniorAtif/Rury-dot-files" }
+  ]
+}
