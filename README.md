@@ -14,4 +14,4 @@
 
 <p><a href="https://github.com/SigniorAtif/ruyah"><img src="cards/project-1.svg" width="33.333%" alt="ruyah"></a><a href="https://github.com/SigniorAtif/quexchange"><img src="cards/project-2.svg" width="33.333%" alt="quexchange"></a><a href="https://github.com/SigniorAtif/Rury-dot-files"><img src="cards/project-3.svg" width="33.333%" alt="Rury-dot-files"></a></p>
 
-<p align="center"><a href="https://www.ahmedatif.in">ahmedatif.in</a> &nbsp;/&nbsp; <a href="https://ruyah.ahmedatif.in">ruyah</a> &nbsp;/&nbsp; <a href="https://quexchange.vercel.app">quexchange</a> &nbsp;/&nbsp; <a href="https://github.com/SigniorAtif/Rury-dot-files">dotfiles</a></p>
+<p align="center"><a href="https://inworks.ahmedatif.in">inworks.ahmedatif.in</a> &nbsp;/&nbsp; <a href="https://ruyah.ahmedatif.in">ruyah</a> &nbsp;/&nbsp; <a href="https://quexchange.vercel.app">quexchange</a> &nbsp;/&nbsp; <a href="https://github.com/SigniorAtif/Rury-dot-files">dotfiles</a></p>
