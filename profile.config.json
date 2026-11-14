@@ -59,7 +59,7 @@
     }
   ],
   "links": [
-    { "label": "ahmedatif.in", "url": "https://www.ahmedatif.in" },
+    { "label": "inworks.ahmedatif.in", "url": "https://inworks.ahmedatif.in" },
     { "label": "ruyah", "url": "https://ruyah.ahmedatif.in" },
     { "label": "dotfiles", "url": "https://github.com/SigniorAtif/Rury-dot-files" }
   ]
