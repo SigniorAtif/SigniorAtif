@@ -4,7 +4,7 @@
 //
 //   GH_TOKEN=$(gh auth token) node scripts/build.mjs   # fetch live data
 //   node scripts/build.mjs --offline                     # reuse scripts/.cache.json
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 
 const root = new URL('../', import.meta.url);
 const here = new URL('./', import.meta.url);
@@ -16,28 +16,29 @@ const offline = process.argv.includes('--offline');
 
 // ---------------------------------------------------------------- tokens
 
+// The portfolio's palette: one material, white dots on neutral dark.
+// Blue means in progress, lime means done.
 const C = {
-  card: '#F7F6F2',
-  ink: '#141414',
-  body: '#3A3935',
-  muted: '#6E6C66',
-  faint: '#A6A49D',
-  line: '#E2E0D9',
-  blue: '#2148F2',
-  red: '#DE2621',
-  yellow: '#F6BD16',
-  levels: ['#E9E8E2', '#CAD3FB', '#93A7F7', '#5877F4', '#2148F2'],
+  ground: '#19191B',
+  panel: '#222225',
+  line: '#333338',
+  lineStrong: '#4A4A52',
+  ink: '#E8EAED',
+  body: '#C9CFD8',
+  muted: '#9AA3AF',
+  faint: '#6F7783',
+  dot: '#FFFFFF',
+  progress: '#7FA6FF',
+  done: '#C8F169',
 };
-const tileInk = { blue: '#FFFFFF', red: '#FFFFFF', yellow: C.ink };
 const W = 840; // card width; GitHub scales it to the README column
 const GAP = 14; // gap between cards in a row of three
-const EASE = 'cubic-bezier(.2,.7,.2,1)';
+const EASE = 'cubic-bezier(.16,1,.3,1)';
 
 const FONT_FILES = {
-  serif: ['PSerif', 'normal', 'InstrumentSerif-Regular.woff2'],
-  'serif-italic': ['PSerif', 'italic', 'InstrumentSerif-Italic.woff2'],
-  sans: ['PSans', 'normal', 'Inter-400.woff2', 400],
-  'sans-600': ['PSans', 'normal', 'Inter-600.woff2', 600],
+  display: ['PDisplay', 'normal', 'Bricolage-Display-600.woff2', 600],
+  sans: ['PSans', 'normal', 'Bricolage-400.woff2', 400],
+  'sans-600': ['PSans', 'normal', 'Bricolage-600.woff2', 600],
   mono: ['PMono', 'normal', 'JBM-400.woff2'],
 };
 const fontData = Object.fromEntries(
@@ -81,8 +82,7 @@ function fontFaces(keys) {
 }
 
 const BASE_CSS = `
-.serif{font-family:PSerif,Georgia,'Times New Roman',serif}
-.it{font-family:PSerif,Georgia,serif;font-style:italic}
+.display{font-family:PDisplay,PSans,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:600}
 .sans{font-family:PSans,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif}
 .mono{font-family:PMono,ui-monospace,SFMono-Regular,Menlo,monospace}
 .rise{animation:rise .9s ${EASE} both}
@@ -101,13 +101,14 @@ ${body}
 
 const delay = (s) => `style="animation-delay:${r1(s * 1000) / 1000}s"`;
 
-function cardRect(x, y, w, h, fill = C.card) {
-  return `<rect x="${x}" y="${y}" width="${r1(w)}" height="${h}" rx="14" fill="${fill}"/>`;
+// A card: flat fill with a hairline so it holds its edge on GitHub's dark page.
+function cardRect(x, y, w, h, fill = C.ground) {
+  return `<rect x="${r1(x + 0.5)}" y="${y + 0.5}" width="${r1(w - 1)}" height="${h - 1}" rx="14" fill="${fill}" stroke="${C.line}"/>`;
 }
 
 // Kicker: small uppercase mono label with tracking.
 function kicker(x, y, text, fill, extra = '', cls = 'mono') {
-  return `<text x="${x}" y="${y}" class="${cls}" font-size="10.5" letter-spacing="1.6" fill="${fill}" ${extra}>${esc(text.toUpperCase())}</text>`;
+  return `<text x="${x}" y="${y}" class="${cls}" font-size="10.5" letter-spacing="2" fill="${fill}" ${extra}>${esc(text.toUpperCase())}</text>`;
 }
 
 // ---------------------------------------------------------------- data
@@ -122,7 +123,7 @@ async function fetchData() {
   if (!token) throw new Error('set GH_TOKEN (or GITHUB_TOKEN) to fetch contribution data');
 
   const repoFields = 'name url homepageUrl description stargazerCount primaryLanguage { name }';
-  const aliases = cfg.projects
+  const aliases = cfg.work.projects
     .map((p, i) => {
       const [owner, name] = p.repo.includes('/') ? p.repo.split('/') : [cfg.login, p.repo];
       return `p${i}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { ${repoFields} }`;
@@ -193,24 +194,32 @@ function summarise(data) {
     busiest: Math.max(...days.map((d) => d.contributionCount)),
     months,
     repos: data.user.repositories.totalCount,
-    yearsCoding: new Date(`${last}T00:00:00Z`).getUTCFullYear() - cfg.since,
-    projects: cfg.projects.map((p, i) => ({ ...p, gh: data[`p${i}`] })),
+    today: last,
+    projects: cfg.work.projects.map((p, i) => ({ ...p, gh: data[`p${i}`] })),
   };
 }
 
 // ---------------------------------------------------------------- cards
 
+// Title in two tones, the way the portfolio sets its section heads.
+function twoTone(main, dim, dimFill = C.muted) {
+  return `${esc(main)}${dim ? ` <tspan fill="${dimFill}">${esc(dim)}</tspan>` : ''}`;
+}
+
+// The hero's own accent, and the paper and ink of the portrait's pool of light.
+const HERO = { paper: '#F7F6F2', ink: '#141414', accent: '#DE2621' };
+
 function hero(s) {
   const h = cfg.hero;
-  const H = 364;
-  const nameSize = 104;
-  const lastW = textWidth(h.last, 'serif-italic', nameSize);
-  const lines = wrap(h.tagline, 'sans', 15.5, 400);
+  const H = 380;
+  const headSize = 40;
+  const lines = wrap(h.headline, 'display', headSize, 440);
 
-  // Halftone portrait in a square on the right, fading out towards its edges.
+  // Profile photo as a halftone: the dark lines of the picture are ink dots, its
+  // blues are drawn in red.
   const n = portrait.size;
   const box = 300;
-  const px = W - box - 24;
+  const px = W - 204 - box / 2; // leaves room for the light around it
   const py = (H - box) / 2;
   const pitch = box / n;
   const dots = { ink: [], accent: [] };
@@ -230,73 +239,117 @@ function hero(s) {
     }
   }
 
-  // A blue band sweeps across the surname, then waits and sweeps again.
+  // The picture sits in a pool of light a little bigger than itself, drawn the way
+  // the portfolio draws the saucer's beam: solid at the middle, then dots that
+  // shrink towards the rim, with grain so the falloff is never a clean line.
+  const mx = px + box / 2;
+  const my = H / 2;
+  const core = 128; // solid out to here
+  const rim = 182; // nothing left by here
+  const step = 4.6;
+  const grain = 0.55;
+  const noise = (x, y) => {
+    const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const light = [[], [], []];
+  for (let gy = -Math.ceil(rim / step); gy <= rim / step; gy++) {
+    for (let gx = -Math.ceil(rim / step); gx <= rim / step; gx++) {
+      const d = Math.hypot(gx, gy) * step;
+      if (d < core - step || d > rim) continue;
+      const clear = Math.min(1, Math.max(0, (d - core) / (rim - core))); // 0 at the core, 1 at the rim
+      const value = (1 - clear) ** 1.5 + (noise(gx, gy) - 0.5) * grain * clear ** 0.6;
+      const r = Math.round(Math.min(1, value) * step * 0.74 * 100) / 100;
+      if (r < 0.3) continue;
+      light[Math.floor(noise(gy, gx) * 3)].push(`<circle cx="${r1(mx + gx * step)}" cy="${r1(my + gy * step)}" r="${r}"/>`);
+    }
+  }
+
   const defs = `
-<linearGradient id="sweep" gradientUnits="userSpaceOnUse" x1="40" y1="0" x2="${r1(40 + lastW)}" y2="0">
-  <stop offset="0" stop-color="${C.ink}"/><stop offset=".38" stop-color="${C.ink}"/>
-  <stop offset=".47" stop-color="${C.blue}"/><stop offset=".53" stop-color="${C.blue}"/>
-  <stop offset=".62" stop-color="${C.ink}"/><stop offset="1" stop-color="${C.ink}"/>
-  <animateTransform attributeName="gradientTransform" type="translate" dur="8s" begin=".5s" repeatCount="indefinite"
-    values="${r1(-lastW)} 0;${r1(-lastW)} 0;${r1(lastW)} 0;${r1(lastW)} 0" keyTimes="0;.05;.4;1"/>
-</linearGradient>
 <clipPath id="reveal"><rect x="${px}" y="0" width="${box}" height="0">
-  <animate attributeName="height" from="0" to="${H}" begin=".3s" dur="2.2s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines=".25 .6 .2 1"/>
+  <animate attributeName="height" from="0" to="${H}" begin=".3s" dur="2.4s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines=".16 1 .3 1"/>
 </rect></clipPath>`;
 
   const css = `
 .pulse{animation:pulse 2.4s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}`;
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.glow{animation:glow 5s ease-in-out infinite}.g1{animation-delay:-1.7s;animation-duration:6.3s}.g2{animation-delay:-3.1s;animation-duration:4.1s}
+@keyframes glow{0%,100%{fill-opacity:1}50%{fill-opacity:.8}}`;
 
+  // Facts sit side by side under the headline, each as wide as its label.
+  const factY = H - 62;
+  let fx = 40;
+  const facts = h.facts
+    .map((f) => {
+      const x = fx;
+      fx += Math.max(textWidth(f.label.toUpperCase(), 'mono', 10.5, 2), textWidth(fill(f.value, s), 'sans-600', 22)) + 36;
+      return `${kicker(x, factY, f.label, C.muted)}
+<text x="${x}" y="${factY + 28}" class="sans" font-weight="600" font-size="22" letter-spacing="-.3" fill="${C.ink}">${esc(fill(f.value, s))}</text>`;
+    })
+    .join('\n');
+
+  const headY = 132;
+  const linkY = headY + (lines.length - 1) * 45 + 38;
   const body = `
 ${cardRect(0, 0, W, H)}
+<g class="rise" fill="${HERO.paper}">
+  <circle cx="${mx}" cy="${my}" r="${core + step * 1.6}"/>
+  ${light.map((g, k) => `<g class="glow g${k}">${g.join('')}</g>`).join('\n  ')}
+</g>
 <g clip-path="url(#reveal)">
-  <g fill="${C.ink}" fill-opacity=".82">${dots.ink.join('')}</g>
-  <g fill="${C.blue}">${dots.accent.join('')}</g>
+  <g fill="${HERO.ink}" fill-opacity=".85">${dots.ink.join('')}</g>
+  <g fill="${HERO.accent}">${dots.accent.join('')}</g>
 </g>
 <g class="rise" ${delay(0)}>
-  <circle class="pulse" cx="44" cy="52.5" r="3.5" fill="${C.blue}"/>
-  ${kicker(56, 56, h.eyebrow, C.muted)}
+  <text x="40" y="58" class="sans" font-weight="600" font-size="18" letter-spacing="-.2" fill="${C.ink}">${esc(h.mark)}</text>
+  <circle class="pulse" cx="${r1(48 + textWidth(h.mark, 'sans-600', 18) + 10)}" cy="52" r="3" fill="${HERO.accent}"/>
+  ${kicker(r1(48 + textWidth(h.mark, 'sans-600', 18) + 22), 56, h.place, C.muted)}
 </g>
-<text x="36" y="156" class="serif rise" font-size="${nameSize}" letter-spacing="-1" fill="${C.ink}" ${delay(0.1)}>${esc(h.first)}</text>
-<text x="40" y="246" class="it rise" font-size="${nameSize}" letter-spacing="-1" fill="url(#sweep)" ${delay(0.2)}>${esc(h.last)}</text>
-<text class="sans rise" font-size="15.5" fill="${C.body}" ${delay(0.35)}>${lines
-    .map((l, i) => `<tspan x="40" y="${288 + i * 23}">${esc(l)}</tspan>`)
+<text class="display rise" font-size="${headSize}" letter-spacing="-1" fill="${C.ink}" ${delay(0.12)}>${lines
+    .map((l, i) => `<tspan x="38" y="${headY + i * 45}">${esc(l)}</tspan>`)
     .join('')}</text>
-<text x="40" y="${288 + lines.length * 23 + 12}" class="mono rise" font-size="11.5" fill="${C.ink}" ${delay(0.45)}>${esc(h.link.label)}<tspan fill="${C.blue}" dx="8">↗</tspan></text>`;
+<text x="40" y="${linkY}" class="mono rise" font-size="11.5" fill="${C.body}" ${delay(0.3)}>${esc(h.link.label)}<tspan fill="${HERO.accent}" dx="8">↗</tspan></text>
+<g class="rise" ${delay(0.4)}>${facts}</g>`;
 
   return svg({
     height: H,
-    fonts: ['serif', 'serif-italic', 'sans', 'mono'],
+    fonts: ['display', 'sans-600', 'mono'],
     css,
     defs,
     body,
-    title: `${h.first} ${h.last}. ${h.tagline}`,
+    title: `${h.mark} ${h.headline}`,
   });
 }
 
 function heatmap(s) {
   const t = cfg.heatmap;
-  const H = 244;
+  const H = 248;
   const weeks = s.weeks;
   const x0 = 40;
-  const y0 = 94;
-  const pitch = (W - 80 + 3) / weeks.length;
-  const cell = r1(pitch - 3);
+  const y0 = 96;
+  const pitch = (W - 80) / weeks.length;
+  // Contributions as dots: the busier the day, the bigger and brighter the dot.
+  const radius = [1.5, 2.6, 3.7, 4.8, 5.9].map((r) => r1((r * pitch) / 14.4));
+  const alpha = [1, 0.5, 0.68, 0.85, 1];
+  const dotFill = (level) => (level === 0 ? C.line : C.dot);
 
   const cols = weeks
     .map((week, wi) => {
-      const rects = week
+      const dots = week
         .map((d) => {
           const row = new Date(`${d.date}T00:00:00Z`).getUTCDay();
-          return `<rect x="${r1(x0 + wi * pitch)}" y="${r1(y0 + row * pitch)}" width="${cell}" height="${cell}" rx="2.5" fill="${C.levels[d.level]}"/>`;
+          const today = d.date === s.today;
+          const level = today ? Math.max(1, d.level) : d.level;
+          return `<circle cx="${r1(x0 + (wi + 0.5) * pitch)}" cy="${r1(y0 + (row + 0.5) * pitch)}" r="${radius[level]}" fill="${today ? C.progress : dotFill(level)}"${level && !today ? ` fill-opacity="${alpha[level]}"` : ''}${today ? ' class="pulse"' : ''}/>`;
         })
         .join('');
-      return `<g class="col" ${delay(0.25 + wi * 0.018)}>${rects}</g>`;
+      return `<g class="col" ${delay(0.25 + wi * 0.018)}>${dots}</g>`;
     })
     .join('\n');
 
-  const ly = y0 + 7 * pitch + 18;
-  const legendX = W - 40 - textWidth('more', 'mono', 10) - 8 - 5 * 13;
+  const ly = y0 + 7 * pitch + 20;
+  const legendW = 5 * 15;
+  const legendX = W - 40 - textWidth('more', 'mono', 10) - 8 - legendW;
   const legendStart = legendX - 8 - textWidth('less', 'mono', 10);
 
   // Month labels at the first week that starts in a new month, kept clear of the legend.
@@ -318,23 +371,25 @@ function heatmap(s) {
 
   const legend = `
 <text x="${r1(legendX - 8)}" y="${r1(ly)}" class="mono" font-size="10" fill="${C.faint}" text-anchor="end">less</text>
-${C.levels.map((c, i) => `<rect x="${r1(legendX + i * 13)}" y="${r1(ly - 9)}" width="10" height="10" rx="2" fill="${c}"/>`).join('')}
+${radius.map((r, i) => `<circle cx="${r1(legendX + i * 15 + 7.5)}" cy="${r1(ly - 3.5)}" r="${r1(r * 0.85)}" fill="${dotFill(i)}"${i ? ` fill-opacity="${alpha[i]}"` : ''}/>`).join('')}
 <text x="${W - 40}" y="${r1(ly)}" class="mono" font-size="10" fill="${C.faint}" text-anchor="end">more</text>`;
 
   const css = `
 .col{animation:pop .7s ${EASE} both}
-@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`;
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.pulse{animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`;
 
   const body = `
 ${cardRect(0, 0, W, H)}
-<text x="40" y="62" class="serif rise" font-size="34" fill="${C.ink}">${esc(t.title)} <tspan class="it" fill="${C.blue}">${esc(t.titleItalic)}</tspan></text>
-${kicker(W - 40, 58, t.note, C.faint, `text-anchor="end" ${delay(0.1)}`, 'mono rise')}
+<text x="39" y="64" class="display rise" font-size="30" letter-spacing="-.6" fill="${C.ink}">${twoTone(t.title, t.titleDim)}</text>
+${kicker(W - 40, 59, t.note, C.faint, `text-anchor="end" ${delay(0.1)}`, 'mono rise')}
 ${cols}
 <g class="rise" ${delay(1.1)}>${labels.join('')}${legend}</g>`;
 
   return svg({
     height: H,
-    fonts: ['serif', 'serif-italic', 'mono'],
+    fonts: ['display', 'mono'],
     css,
     body,
     title: `${fmt(s.total)} contributions in the last year`,
@@ -346,38 +401,46 @@ function stats(s) {
   const chartX = 40;
   const chartW = 500;
   const base = 250;
-  const maxH = 104;
+  const maxH = 100;
   const slot = chartW / s.months.length;
   const barW = r1(slot * 0.72);
   const peak = Math.max(...s.months.map((m) => m.total), 1);
   const peakIdx = s.months.findIndex((m) => m.total === peak);
 
+  // Finished months are white. The month still running is blue: in progress.
   const bars = s.months
     .map((m, i) => {
       const h = Math.max(3, r1((m.total / peak) * maxH));
       const x = r1(chartX + i * slot + (slot - barW) / 2);
-      const fill = m.partial ? '#D6D4CD' : i === peakIdx ? C.blue : C.ink;
+      const barFill = m.partial ? C.progress : i === peakIdx ? C.dot : C.lineStrong;
       const label =
-        i === peakIdx
-          ? `<text x="${r1(x + barW / 2)}" y="${r1(base - h - 8)}" class="mono" font-size="10" fill="${C.blue}" text-anchor="middle">${fmt(m.total)}</text>`
+        i === peakIdx || m.partial
+          ? `<text x="${r1(x + barW / 2)}" y="${r1(base - h - 8)}" class="mono" font-size="10" fill="${m.partial ? C.progress : C.ink}" text-anchor="middle">${fmt(m.total)}</text>`
           : '';
-      return `<g class="bar" ${delay(0.3 + i * 0.05)}><rect x="${x}" y="${r1(base - h)}" width="${barW}" height="${h}" rx="2" fill="${fill}"/>${label}</g>
-<text x="${r1(x + barW / 2)}" y="${base + 20}" class="mono" font-size="10" fill="${C.faint}" text-anchor="middle">${m.label}</text>`;
+      return `<g class="bar" ${delay(0.3 + i * 0.05)}><rect x="${x}" y="${r1(base - h)}" width="${barW}" height="${h}" rx="2" fill="${barFill}"/>${label}</g>
+<text x="${r1(x + barW / 2)}" y="${base + 20}" class="mono" font-size="10" fill="${m.partial ? C.progress : C.faint}" text-anchor="middle">${m.label}</text>`;
     })
     .join('\n');
 
-  const streakNote = s.current >= s.longest ? 'current streak, and the longest' : `current streak · longest ${s.longest}`;
+  // Between streaks, lead with the longest one rather than a zero.
+  const streak = s.current || s.longest;
+  const streakNote = !s.current
+    ? 'longest streak this year'
+    : s.current >= s.longest
+      ? 'current streak, and the longest'
+      : `current streak · longest ${s.longest}`;
   const rx = 600;
+  const dim = (t) => `<tspan fill="${C.muted}">${t}</tspan>`;
   const rows = [
-    { y: 106, big: `${s.current}<tspan class="it"> ${s.current === 1 ? 'day' : 'days'}</tspan>`, note: streakNote },
-    { y: 186, big: `${s.active}<tspan fill="${C.faint}"> / </tspan>${s.span}`, note: 'days with a contribution' },
-    { y: 266, big: `${s.busiest}`, note: 'on the busiest day' },
+    { y: 104, big: `${streak}${dim(streak === 1 ? ' day' : ' days')}`, note: streakNote },
+    { y: 184, big: `${s.active}${dim(` / ${s.span}`)}`, note: 'days with a contribution' },
+    { y: 264, big: `${s.busiest}`, note: 'on the busiest day' },
   ];
   const right = rows
     .map(
       (r, i) => `<g class="rise" ${delay(0.5 + i * 0.12)}>
-<text x="${rx}" y="${r.y}" class="serif" font-size="36" fill="${C.ink}">${r.big}</text>
-<text x="${rx}" y="${r.y + 21}" class="sans" font-size="11.5" fill="${C.muted}">${esc(r.note)}</text>
+<text x="${rx}" y="${r.y}" class="display" font-size="30" letter-spacing="-.6" fill="${C.ink}">${r.big}</text>
+<text x="${rx}" y="${r.y + 21}" class="sans" font-size="12" fill="${C.muted}">${esc(r.note)}</text>
 ${i < rows.length - 1 ? `<line x1="${rx}" x2="${W - 40}" y1="${r.y + 44}" y2="${r.y + 44}" stroke="${C.line}"/>` : ''}</g>`,
     )
     .join('\n');
@@ -388,17 +451,17 @@ ${i < rows.length - 1 ? `<line x1="${rx}" x2="${W - 40}" y1="${r.y + 44}" y2="${
 
   const body = `
 ${cardRect(0, 0, W, H)}
-${kicker(40, 56, 'The last 12 months on GitHub', C.faint, '', 'mono rise')}
-<text x="38" y="110" class="serif rise" font-size="54" letter-spacing="-.5" fill="${C.ink}" ${delay(0.1)}>${fmt(s.total)} <tspan class="it">contributions</tspan></text>
+${kicker(40, 56, 'The last 12 months on GitHub', C.muted, '', 'mono rise')}
+<text x="38" y="108" class="display rise" font-size="46" letter-spacing="-1.2" fill="${C.ink}" ${delay(0.1)}>${twoTone(fmt(s.total), 'contributions')}</text>
 ${bars}
 ${right}`;
 
   return svg({
     height: H,
-    fonts: ['serif', 'serif-italic', 'sans', 'mono'],
+    fonts: ['display', 'sans', 'mono'],
     css,
     body,
-    title: `${fmt(s.total)} contributions. Current streak ${s.current} days, ${s.active} of ${s.span} days active, busiest day ${s.busiest}.`,
+    title: `${fmt(s.total)} contributions. ${s.current ? 'Current' : 'Longest'} streak ${streak} days, ${s.active} of ${s.span} days active, busiest day ${s.busiest}.`,
   });
 }
 
@@ -415,77 +478,84 @@ function fill(str, s) {
   return String(str).replace(/\{(\w+)\}/g, (_, k) => (k in s ? fmt(s[k]) : `{${k}}`));
 }
 
-function tile(t, i, s) {
-  const H = 196;
+const two = (n) => String(n).padStart(2, '0');
+
+// One of the things I do: a big number, a name, a line about it and what it covers.
+function thing(t, i) {
   const { slotW, cardW, x } = rowSlot(i);
-  const ink = tileInk[t.color];
-  const soft = t.color === 'yellow' ? 'rgba(20,20,20,.78)' : 'rgba(255,255,255,.86)';
   const lines = wrap(t.text, 'sans', 12.5, cardW - 44);
-  const value = fill(t.value, s);
-  const css = `
-.ring{animation:spin 30s linear infinite;transform-origin:${r1(x + cardW + 8)}px ${H + 10}px}
-@keyframes spin{to{transform:rotate(360deg)}}`;
+  const most = Math.max(...cfg.things.items.map((o) => wrap(o.text, 'sans', 12.5, cardW - 44).length));
+  const H = 154 + most * 18.5 + 40;
   const body = `
-<clipPath id="c"><rect x="${x}" y="0" width="${r1(cardW)}" height="${H}" rx="14"/></clipPath>
 <g class="rise" ${delay(0.1 + i * 0.12)}>
-${cardRect(x, 0, cardW, H, C[t.color])}
-<g clip-path="url(#c)" stroke="${ink}" stroke-opacity=".14" fill="none">
-  <g class="ring"><circle cx="${r1(x + cardW + 8)}" cy="${H + 10}" r="70"/><circle cx="${r1(x + cardW + 8)}" cy="${H + 10}" r="104" stroke-dasharray="2 6"/><circle cx="${r1(x + cardW + 8)}" cy="${H + 10}" r="140"/></g>
-</g>
-${kicker(r1(x + 22), 38, t.kicker, ink, 'fill-opacity=".9"')}
-<text x="${r1(x + cardW - 22)}" y="39" class="mono" font-size="12" fill="${ink}" text-anchor="end">→</text>
-<text x="${r1(x + 21)}" y="100" class="serif" font-size="44" letter-spacing="-.3" fill="${ink}">${esc(value)} <tspan class="it">${esc(t.unit)}</tspan></text>
-<text class="sans" font-size="12.5" fill="${soft}">${lines
-    .map((l, k) => `<tspan x="${r1(x + 22)}" y="${130 + k * 18.5}">${esc(l)}</tspan>`)
+${cardRect(x, 0, cardW, H, C.panel)}
+<text x="${r1(x + 20)}" y="66" class="display" font-size="46" letter-spacing="-1.5" fill="${C.lineStrong}">${two(i + 1)}</text>
+<text x="${r1(x + cardW - 22)}" y="40" class="mono" font-size="13" fill="${C.muted}" text-anchor="end">↗</text>
+<text x="${r1(x + 22)}" y="112" class="sans" font-weight="600" font-size="20" letter-spacing="-.4" fill="${C.ink}">${esc(t.title)}</text>
+<text class="sans" font-size="12.5" fill="${C.body}">${lines
+    .map((l, k) => `<tspan x="${r1(x + 22)}" y="${140 + k * 18.5}">${esc(l)}</tspan>`)
     .join('')}</text>
+<line x1="${r1(x + 22)}" x2="${r1(x + cardW - 22)}" y1="${H - 44}" y2="${H - 44}" stroke="${C.line}"/>
+<text x="${r1(x + 22)}" y="${H - 22}" class="mono" font-size="10.5" fill="${C.muted}">${esc(t.names.join(' · '))}</text>
 </g>`;
   return svg({
     width: slotW,
     height: H,
-    fonts: ['serif', 'serif-italic', 'sans', 'mono'],
-    css,
+    fonts: ['display', 'sans', 'sans-600', 'mono'],
     body,
-    title: `${value} ${t.unit}. ${t.text}`,
+    title: `${t.title}. ${t.text}`,
   });
 }
 
 function project(p, i) {
-  const H = 172;
-  const { slotW, cardW, x } = rowSlot(i);
+  const H = 194;
+  const { slotW, cardW, x } = rowSlot(i % 3);
   const gh = p.gh;
   if (!gh) throw new Error(`repository not found: ${p.repo}`);
+  const name = p.name || gh.name;
   const lines = wrap(p.text || gh.description || '', 'sans', 12.5, cardW - 44).slice(0, 3);
-  const meta = [gh.primaryLanguage?.name, gh.stargazerCount > 0 ? null : gh.homepageUrl ? 'live' : null]
+  // Lime means done: the project is live somewhere you can open it.
+  const live = p.live ?? Boolean(gh.homepageUrl);
+  const meta = [gh.primaryLanguage?.name, gh.stargazerCount > 0 ? `${gh.stargazerCount} ${gh.stargazerCount === 1 ? 'star' : 'stars'}` : null]
     .filter(Boolean)
     .join(' · ');
-  const star =
-    gh.stargazerCount > 0
-      ? `${meta ? ' · ' : ''}<tspan class="sans" font-size="10">★</tspan> ${gh.stargazerCount}`
-      : '';
+  const liveW = textWidth('LIVE', 'mono', 10.5, 2);
+  const css = `
+.pulse{animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`;
   const body = `
-<g class="rise" ${delay(0.1 + i * 0.12)}>
+<g class="rise" ${delay(0.1 + (i % 3) * 0.12)}>
 ${cardRect(x, 0, cardW, H)}
-<rect x="${r1(x + 22)}" y="32" width="7" height="7" rx="1.5" fill="${C[p.color]}"/>
-<text x="${r1(x + 37)}" y="40.5" class="sans" font-weight="600" font-size="15" letter-spacing="-.2" fill="${C.ink}">${esc(gh.name)}</text>
+${kicker(r1(x + 22), 40, `${two(i + 1)} / ${p.type || 'Project'}`, C.muted)}
+${
+  live
+    ? `<circle class="pulse" cx="${r1(x + cardW - 22 - liveW - 10)}" cy="36.2" r="3" fill="${C.done}"/>${kicker(r1(x + cardW - 22), 40, 'Live', C.done, 'text-anchor="end"')}`
+    : ''
+}
+<text x="${r1(x + 22)}" y="76" class="sans" font-weight="600" font-size="18" letter-spacing="-.3" fill="${C.ink}">${esc(name)}</text>
 <text class="sans" font-size="12.5" fill="${C.body}">${lines
-    .map((l, k) => `<tspan x="${r1(x + 22)}" y="${72 + k * 18.5}">${esc(l)}</tspan>`)
+    .map((l, k) => `<tspan x="${r1(x + 22)}" y="${102 + k * 18.5}">${esc(l)}</tspan>`)
     .join('')}</text>
-<text x="${r1(x + 22)}" y="${H - 24}" class="mono" font-size="10.5" fill="${C.faint}">${esc(meta)}${star}</text>
+<text x="${r1(x + 22)}" y="${H - 22}" class="mono" font-size="10.5" fill="${C.faint}">${esc(meta)}</text>
 </g>`;
   return svg({
     width: slotW,
     height: H,
     fonts: ['sans', 'sans-600', 'mono'],
+    css,
     body,
-    title: `${gh.name}: ${p.text || gh.description || ''}`,
+    title: `${name}: ${p.text || gh.description || ''}`,
   });
 }
 
-function heading(theme) {
-  const H = 64;
-  const fill = theme === 'dark' ? '#E8E6E1' : '#1F2328';
-  const body = `<text x="2" y="44" class="serif rise" font-size="38" fill="${fill}">${esc(cfg.codingTitle)} <tspan class="it">${esc(cfg.codingTitleItalic)}</tspan></text>`;
-  return svg({ height: H, fonts: ['serif', 'serif-italic'], body, title: `${cfg.codingTitle} ${cfg.codingTitleItalic}` });
+// Section heads sit straight on the page, so they come in a light and a dark ink.
+function heading(h, n, theme) {
+  const H = 78;
+  const ink = theme === 'dark' ? C.ink : '#1F2328';
+  const dim = theme === 'dark' ? C.faint : '#8C959F';
+  const body = `${kicker(2, 20, `${two(n)} / ${h.kicker}`, dim, '', 'mono rise')}
+<text x="0" y="62" class="display rise" font-size="34" letter-spacing="-.8" fill="${ink}" ${delay(0.08)}>${twoTone(h.title, h.titleDim, dim)}</text>`;
+  return svg({ height: H, fonts: ['display', 'mono'], body, title: [h.title, h.titleDim].filter(Boolean).join(' ') });
 }
 
 // ---------------------------------------------------------------- readme
@@ -494,23 +564,31 @@ function readme(s) {
   const img = (src, alt, width = '100%') => `<img src="${src}" width="${width}" alt="${esc(alt)}">`;
   const row = (items) =>
     items.map(({ url, src, alt }) => `<a href="${url}">${img(src, alt, '33.333%')}</a>`).join('');
+  const head = (slug, h) => `<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="cards/${slug}-dark.svg">
+  ${img(`cards/${slug}-light.svg`, [h.title, h.titleDim].filter(Boolean).join(' '))}
+</picture>`;
+  const projects = s.projects.map((p, i) => ({ url: p.gh.url, src: `cards/project-${i + 1}.svg`, alt: p.name || p.gh.name }));
+  const rows = [];
+  for (let i = 0; i < projects.length; i += 3) rows.push(`<p>${row(projects.slice(i, i + 3))}</p>`);
   return `<!-- Generated by scripts/build.mjs from profile.config.json. Edit those, not this file. -->
-<a href="${cfg.hero.link.url}">${img('cards/hero.svg', `${cfg.hero.first} ${cfg.hero.last}`)}</a>
+<a href="${cfg.hero.link.url}">${img('cards/hero.svg', `${cfg.hero.mark} ${cfg.hero.headline}`)}</a>
 
 ${img('cards/heatmap.svg', 'Contribution heatmap')}
 
 ${img('cards/stats.svg', 'Contribution stats')}
 
-<p>${row(cfg.tiles.map((t, i) => ({ url: t.url, src: `cards/tile-${i + 1}.svg`, alt: `${fill(t.value, s)} ${t.unit}` })))}</p>
+${head('things', cfg.things)}
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="cards/coding-dark.svg">
-  ${img('cards/coding-light.svg', `${cfg.codingTitle} ${cfg.codingTitleItalic}`)}
-</picture>
+<p>${row(cfg.things.items.map((t, i) => ({ url: t.url, src: `cards/thing-${i + 1}.svg`, alt: t.title })))}</p>
 
-<p>${row(s.projects.map((p, i) => ({ url: p.gh.url, src: `cards/project-${i + 1}.svg`, alt: p.gh.name })))}</p>
+${head('work', cfg.work)}
+
+${rows.join('\n\n')}
 
 <p align="center">${cfg.links.map((l) => `<a href="${l.url}">${esc(l.label)}</a>`).join(' &nbsp;/&nbsp; ')}</p>
+
+<p align="center"><sub>${esc(cfg.signOff)}</sub></p>
 `;
 }
 
@@ -518,15 +596,19 @@ ${img('cards/stats.svg', 'Contribution stats')}
 
 const s = summarise(await fetchData());
 const out = new URL('cards/', root);
+// Start clean so cards dropped from the config do not linger.
+rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 const files = {
   'hero.svg': hero(s),
   'heatmap.svg': heatmap(s),
   'stats.svg': stats(s),
-  'coding-dark.svg': heading('dark'),
-  'coding-light.svg': heading('light'),
 };
-cfg.tiles.forEach((t, i) => (files[`tile-${i + 1}.svg`] = tile(t, i, s)));
+for (const theme of ['dark', 'light']) {
+  files[`things-${theme}.svg`] = heading(cfg.things, 1, theme);
+  files[`work-${theme}.svg`] = heading(cfg.work, 2, theme);
+}
+cfg.things.items.forEach((t, i) => (files[`thing-${i + 1}.svg`] = thing(t, i)));
 s.projects.forEach((p, i) => (files[`project-${i + 1}.svg`] = project(p, i)));
 for (const [name, content] of Object.entries(files)) writeFileSync(new URL(name, out), content);
 writeFileSync(new URL('README.md', root), readme(s));
