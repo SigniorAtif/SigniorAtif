@@ -75,7 +75,7 @@
         "name": "GDG on Campus KIIT",
         "type": "Community site",
         "text": "Site for the Google Developer Group at KIIT. Content lives in Notion and syncs to the page live.",
-        "url": "https://gdgkiit.vercel.app",
+        "url": "https://gdgkiit.in",
         "language": "TypeScript",
         "live": true
       },
