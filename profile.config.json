@@ -55,6 +55,12 @@
     "titleDim": "work",
     "projects": [
       {
+        "repo": "Rury-dot-files",
+        "name": "rury",
+        "type": "Desktop",
+        "text": "The Quickshell desktop for Hyprland I work in every day."
+      },
+      {
         "repo": "Tasks",
         "type": "Product",
         "text": "A calendar and task app for students that still works offline.",
@@ -64,6 +70,14 @@
         "repo": "ruyah",
         "type": "Sync engine",
         "text": "Watch the same film together from two places. Only timing crosses the network."
+      },
+      {
+        "name": "GDG on Campus KIIT",
+        "type": "Community site",
+        "text": "Site for the Google Developer Group at KIIT. Content lives in Notion and syncs to the page live.",
+        "url": "https://gdgkiit.in",
+        "language": "TypeScript",
+        "live": true
       },
       {
         "repo": "Obsidian-CC-connector",
@@ -77,17 +91,6 @@
         "name": "QuExchange",
         "type": "Experiment",
         "text": "Send a file between devices as a deck of QR frames. No network at all."
-      },
-      {
-        "repo": "Rury-dot-files",
-        "name": "rury",
-        "type": "Desktop",
-        "text": "The Quickshell desktop for Hyprland I work in every day."
-      },
-      {
-        "repo": "Portfolio",
-        "type": "Site",
-        "text": "The portfolio these cards borrow from: a three.js dot portrait, GSAP and Lenis scroll motion."
       }
     ]
   },
