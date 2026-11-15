@@ -19,7 +19,7 @@
 
 <p><a href="https://github.com/SigniorAtif/Rury-dot-files"><img src="cards/project-1.svg" width="33.333%" alt="rury"></a><a href="https://github.com/SigniorAtif/Tasks"><img src="cards/project-2.svg" width="33.333%" alt="Tasks"></a><a href="https://github.com/SigniorAtif/ruyah"><img src="cards/project-3.svg" width="33.333%" alt="ruyah"></a></p>
 
-<p><a href="https://gdgkiit.vercel.app"><img src="cards/project-4.svg" width="33.333%" alt="GDG on Campus KIIT"></a><a href="https://github.com/SigniorAtif/Obsidian-CC-connector"><img src="cards/project-5.svg" width="33.333%" alt="Claude Code Connector"></a><a href="https://github.com/SigniorAtif/quexchange"><img src="cards/project-6.svg" width="33.333%" alt="QuExchange"></a></p>
+<p><a href="https://gdgkiit.in"><img src="cards/project-4.svg" width="33.333%" alt="GDG on Campus KIIT"></a><a href="https://github.com/SigniorAtif/Obsidian-CC-connector"><img src="cards/project-5.svg" width="33.333%" alt="Claude Code Connector"></a><a href="https://github.com/SigniorAtif/quexchange"><img src="cards/project-6.svg" width="33.333%" alt="QuExchange"></a></p>
 
 <p align="center"><a href="https://inworks.ahmedatif.in">inworks.ahmedatif.in</a> &nbsp;/&nbsp; <a href="https://inworks.ahmedatif.in/work">Work</a> &nbsp;/&nbsp; <a href="https://inworks.ahmedatif.in/about">About</a> &nbsp;/&nbsp; <a href="mailto:note@ahmedatif.in">note@ahmedatif.in</a></p>
 
